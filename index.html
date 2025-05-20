@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Note Maker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .note-card {
+            transition: all 0.3s ease;
+            transform-origin: center;
+        }
+        .note-card:hover {
+            transform: translateY(-5px) scale(1.02);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        }
+    </style>
+</head>
+<body class="min-h-screen gradient-bg font-sans">
+    <div class="container mx-auto px-4 py-8">
+        <header class="text-center mb-12">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">Create Notes</h1>
+            <p class="text-gray-600">Capture your thoughts beautifully</p>
+        </header>
+
+        <div class="max-w-3xl mx-auto bg-white rounded-xl shadow-lg p-6 mb-8">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Create New Note</h2>
+            <div class="space-y-4">
+                <div>
+                    <label for="note-title" class="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                    <input type="text" id="note-title" placeholder="Note title..." 
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+                </div>
+                <div>
+                    <label for="note-content" class="block text-sm font-medium text-gray-700 mb-1">Content</label>
+                    <textarea id="note-content" rows="4" placeholder="Write your note here..." 
+                              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"></textarea>
+                </div>
+                <div class="flex justify-end">
+                    <button id="create-note" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center">
+                        <i class="fas fa-plus mr-2"></i> Create Note
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="notes-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Notes will be added here dynamically -->
+        </div>
+
+        <!-- Edit Note Modal -->
+        <div id="edit-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+            <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold text-gray-800">Edit Note</h3>
+                    <button id="close-modal" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <label for="edit-title" class="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                        <input type="text" id="edit-title" 
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+                    </div>
+                    <div>
+                        <label for="edit-content" class="block text-sm font-medium text-gray-700 mb-1">Content</label>
+                        <textarea id="edit-content" rows="4" 
+                                  class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"></textarea>
+                    </div>
+                    <div class="flex justify-end space-x-3">
+                        <button id="cancel-edit" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition">
+                            Cancel
+                        </button>
+                        <button id="save-edit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+                            Save Changes
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { auth, db } from './firebase.js';
+        import { collection, addDoc, getDocs, deleteDoc, doc, updateDoc, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        
+        document.addEventListener('DOMContentLoaded', async function() {
+            // DOM Elements
+            const noteTitleInput = document.getElementById('note-title');
+            const noteContentInput = document.getElementById('note-content');
+            const createNoteBtn = document.getElementById('create-note');
+            const notesContainer = document.getElementById('notes-container');
+            const editModal = document.getElementById('edit-modal');
+            const editTitleInput = document.getElementById('edit-title');
+            const editContentInput = document.getElementById('edit-content');
+            const saveEditBtn = document.getElementById('save-edit');
+            const closeModalBtn = document.getElementById('close-modal');
+            const cancelEditBtn = document.getElementById('cancel-edit');
+
+            // State
+            let notes = [];
+            let userId = null;
+
+            // Check authentication state
+            auth.onAuthStateChanged(async (user) => {
+                if (user) {
+                    userId = user.uid;
+                    await loadNotes();
+                } else {
+                    window.location.href = '/auth.html';
+                }
+            });
+
+            // Load notes from Firestore
+            async function loadNotes() {
+                const q = query(collection(db, "notes"), where("userId", "==", userId));
+                const querySnapshot = await getDocs(q);
+                notes = querySnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                renderNotes();
+            }
+            let currentEditId = null;
+
+            // Colors for note cards
+            const noteColors = [
+                'bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200',
+                'bg-gradient-to-br from-green-50 to-green-100 border-green-200',
+                'bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-200',
+                'bg-gradient-to-br from-pink-50 to-pink-100 border-pink-200',
+                'bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200',
+                'bg-gradient-to-br from-indigo-50 to-indigo-100 border-indigo-200'
+            ];
+
+            // Initialize the app
+            function init() {
+                renderNotes();
+                setupEventListeners();
+            }
+
+            // Set up event listeners
+            function setupEventListeners() {
+                createNoteBtn.addEventListener('click', createNote);
+                closeModalBtn.addEventListener('click', closeEditModal);
+                cancelEditBtn.addEventListener('click', closeEditModal);
+                saveEditBtn.addEventListener('click', saveEditedNote);
+                
+                // Allow creating note with Enter key in content field
+                noteContentInput.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                        createNote();
+                    }
+                });
+            }
+
+            // Create a new note
+            function createNote() {
+                const title = noteTitleInput.value.trim();
+                const content = noteContentInput.value.trim();
+                
+                if (!title && !content) {
+                    alert('Please enter at least a title or content for your note.');
+                    return;
+                }
+                
+                const newNote = {
+                    id: Date.now().toString(),
+                    title: title || 'Untitled Note',
+                    content: content || '',
+                    createdAt: new Date().toISOString(),
+                    color: noteColors[Math.floor(Math.random() * noteColors.length)]
+                };
+                
+                notes.unshift(newNote);
+                saveNotes();
+                renderNotes();
+                
+                // Clear inputs
+                noteTitleInput.value = '';
+                noteContentInput.value = '';
+                noteTitleInput.focus();
+                
+                // Show animation for new note
+                const firstNote = document.querySelector('.note-card');
+                if (firstNote) {
+                    firstNote.classList.add('fade-in');
+                }
+            }
+
+            // Render all notes
+            function renderNotes() {
+                if (notes.length === 0) {
+                    notesContainer.innerHTML = `
+                        <div class="col-span-full text-center py-12">
+                            <i class="fas fa-sticky-note text-4xl text-gray-300 mb-4"></i>
+                            <p class="text-gray-500">No notes yet. Create your first note above!</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                notesContainer.innerHTML = notes.map(note => `
+                    <div class="note-card ${note.color} border rounded-xl shadow-sm overflow-hidden fade-in">
+                        <div class="p-5">
+                            <div class="flex justify-between items-start mb-2">
+                                <h3 class="font-bold text-lg text-gray-800 truncate">${note.title}</h3>
+                                <span class="text-xs text-gray-500 ml-2 whitespace-nowrap">
+                                    ${new Date(note.createdAt).toLocaleDateString()}
+                                </span>
+                            </div>
+                            <p class="text-gray-600 mb-4 whitespace-pre-line">${note.content || '<span class="text-gray-400 italic">No content</span>'}</p>
+                        </div>
+                        <div class="bg-white bg-opacity-70 px-4 py-3 flex justify-end space-x-2 border-t">
+                            <button data-id="${note.id}" class="edit-btn px-3 py-1 text-sm text-blue-600 hover:text-blue-800 transition">
+                                <i class="fas fa-edit mr-1"></i> Edit
+                            </button>
+                            <button data-id="${note.id}" class="delete-btn px-3 py-1 text-sm text-red-600 hover:text-red-800 transition">
+                                <i class="fas fa-trash-alt mr-1"></i> Delete
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+                
+                // Add event listeners to the new buttons
+                document.querySelectorAll('.edit-btn').forEach(btn => {
+                    btn.addEventListener('click', openEditModal);
+                });
+                
+                document.querySelectorAll('.delete-btn').forEach(btn => {
+                    btn.addEventListener('click', deleteNote);
+                });
+            }
+
+            // Open edit modal
+            function openEditModal(e) {
+                const noteId = e.currentTarget.getAttribute('data-id');
+                const note = notes.find(n => n.id === noteId);
+                
+                if (note) {
+                    currentEditId = noteId;
+                    editTitleInput.value = note.title;
+                    editContentInput.value = note.content;
+                    editModal.classList.remove('hidden');
+                }
+            }
+
+            // Close edit modal
+            function closeEditModal() {
+                editModal.classList.add('hidden');
+                currentEditId = null;
+            }
+
+            // Save edited note
+            function saveEditedNote() {
+                if (!currentEditId) return;
+                
+                const title = editTitleInput.value.trim();
+                const content = editContentInput.value.trim();
+                
+                if (!title && !content) {
+                    alert('Please enter at least a title or content for your note.');
+                    return;
+                }
+                
+                const noteIndex = notes.findIndex(n => n.id === currentEditId);
+                
+                if (noteIndex !== -1) {
+                    notes[noteIndex].title = title || 'Untitled Note';
+                    notes[noteIndex].content = content || '';
+                    saveNotes();
+                    renderNotes();
+                    closeEditModal();
+                }
+            }
+
+            // Delete a note
+            function deleteNote(e) {
+                if (confirm('Are you sure you want to delete this note?')) {
+                    const noteId = e.currentTarget.getAttribute('data-id');
+                    notes = notes.filter(note => note.id !== noteId);
+                    saveNotes();
+                    renderNotes();
+                }
+            }
+
+            // Save note to Firestore
+            async function createNote() {
+                const title = noteTitleInput.value.trim();
+                const content = noteContentInput.value.trim();
+                
+                if (!title && !content) {
+                    alert('Please enter at least a title or content for your note.');
+                    return;
+                }
+                
+                const newNote = {
+                    userId: userId,
+                    title: title || 'Untitled Note',
+                    content: content || '',
+                    createdAt: new Date().toISOString(),
+                    color: noteColors[Math.floor(Math.random() * noteColors.length)]
+                };
+                
+                const docRef = await addDoc(collection(db, "notes"), newNote);
+                newNote.id = docRef.id;
+                notes.unshift(newNote);
+                renderNotes();
+                
+                noteTitleInput.value = '';
+                noteContentInput.value = '';
+                noteTitleInput.focus();
+            }
+
+            async function deleteNote(e) {
+                if (confirm('Are you sure you want to delete this note?')) {
+                    const noteId = e.currentTarget.getAttribute('data-id');
+                    await deleteDoc(doc(db, "notes", noteId));
+                    notes = notes.filter(note => note.id !== noteId);
+                    renderNotes();
+                }
+            }
+
+            async function saveEditedNote() {
+                if (!currentEditId) return;
+                
+                const title = editTitleInput.value.trim();
+                const content = editContentInput.value.trim();
+                
+                if (!title && !content) {
+                    alert('Please enter at least a title or content for your note.');
+                    return;
+                }
+                
+                const noteRef = doc(db, "notes", currentEditId);
+                await updateDoc(noteRef, {
+                    title: title || 'Untitled Note',
+                    content: content || ''
+                });
+
+                const noteIndex = notes.findIndex(n => n.id === currentEditId);
+                if (noteIndex !== -1) {
+                    notes[noteIndex].title = title || 'Untitled Note';
+                    notes[noteIndex].content = content || '';
+                    renderNotes();
+                    closeEditModal();
+                }
+            }
+
+            // Initialize the app
+            init();
+        });
+    </script>
+    <p style="border-radius: 8px; text-align: center; font-size: 12px; color: #fff; margin-top: 16px;position: fixed; left: 8px; bottom: 8px; z-index: 10; background: rgba(0, 0, 0, 0.8); padding: 4px 8px;">Made with <span style="color: red;" >❤️</span> by Amar developer</p>
+</body>
+</html>
