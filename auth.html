@@ -30,6 +30,24 @@
             </div>
             <div>
                 <input type="password" id="password" placeholder="Password" class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                <div id="password-requirements" class="mt-2 text-sm space-y-1 hidden">
+                    <div id="length-req" class="flex items-center text-red-500">
+                        <i class="fas fa-times mr-2"></i>
+                        <span>At least 8 characters</span>
+                    </div>
+                    <div id="special-req" class="flex items-center text-red-500">
+                        <i class="fas fa-times mr-2"></i>
+                        <span>Contains special character (#, @, &, !)</span>
+                    </div>
+                    <div id="uppercase-req" class="flex items-center text-red-500">
+                        <i class="fas fa-times mr-2"></i>
+                        <span>Contains uppercase letter</span>
+                    </div>
+                    <div id="lowercase-req" class="flex items-center text-red-500">
+                        <i class="fas fa-times mr-2"></i>
+                        <span>Contains lowercase letter</span>
+                    </div>
+                </div>
             </div>
             <button type="submit" id="submit-btn" class="w-full bg-blue-600 text-white rounded-lg px-6 py-3 font-medium hover:bg-blue-700 transition duration-150 shadow-md">
                 Sign In
@@ -71,7 +89,108 @@
         </div>
     </div>
 
+    <!-- Email Verification Modal -->
+    <div id="email-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6 transform transition-all">
+            <div class="text-center">
+                <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-blue-100 mb-4">
+                    <i class="fas fa-envelope text-2xl text-blue-600"></i>
+                </div>
+                <h3 id="modal-title" class="text-xl font-semibold text-gray-800 mb-2"></h3>
+                <p id="modal-message" class="text-gray-600 mb-6"></p>
+                
+                <div id="resend-section" class="hidden mb-4">
+                    <button id="resend-btn" class="w-full bg-blue-600 text-white rounded-lg px-6 py-3 font-medium hover:bg-blue-700 transition duration-150 shadow-md disabled:bg-gray-400 disabled:cursor-not-allowed">
+                        <i class="fas fa-paper-plane mr-2"></i>
+                        <span id="resend-text">Resend Email</span>
+                    </button>
+                    <p id="timer-text" class="text-sm text-gray-500 mt-2 hidden"></p>
+                </div>
+                
+                <button id="modal-close" class="w-full bg-gray-200 text-gray-800 rounded-lg px-6 py-3 font-medium hover:bg-gray-300 transition duration-150">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script type="module" src="firebase.js"></script>
     <script type="module" src="auth.js"></script>
+    <script>
+        // Password validation
+        const passwordInput = document.getElementById('password');
+        const passwordRequirements = document.getElementById('password-requirements');
+        const lengthReq = document.getElementById('length-req');
+        const specialReq = document.getElementById('special-req');
+        const uppercaseReq = document.getElementById('uppercase-req');
+        const lowercaseReq = document.getElementById('lowercase-req');
+
+        function validatePasswordRequirement(element, isValid) {
+            const icon = element.querySelector('i');
+            if (isValid) {
+                element.classList.remove('text-red-500');
+                element.classList.add('text-green-500');
+                icon.classList.remove('fa-times');
+                icon.classList.add('fa-check');
+            } else {
+                element.classList.remove('text-green-500');
+                element.classList.add('text-red-500');
+                icon.classList.remove('fa-check');
+                icon.classList.add('fa-times');
+            }
+        }
+
+        function validatePassword(password) {
+            const hasLength = password.length >= 8;
+            const hasSpecial = /[#@&!]/.test(password);
+            const hasUppercase = /[A-Z]/.test(password);
+            const hasLowercase = /[a-z]/.test(password);
+
+            validatePasswordRequirement(lengthReq, hasLength);
+            validatePasswordRequirement(specialReq, hasSpecial);
+            validatePasswordRequirement(uppercaseReq, hasUppercase);
+            validatePasswordRequirement(lowercaseReq, hasLowercase);
+
+            const allValid = hasLength && hasSpecial && hasUppercase && hasLowercase;
+            
+            // Update password input border color
+            if (password.length > 0) {
+                if (allValid) {
+                    passwordInput.classList.remove('border-red-300', 'focus:ring-red-500', 'focus:border-red-500');
+                    passwordInput.classList.add('border-green-300', 'focus:ring-green-500', 'focus:border-green-500');
+                } else {
+                    passwordInput.classList.remove('border-green-300', 'focus:ring-green-500', 'focus:border-green-500');
+                    passwordInput.classList.add('border-red-300', 'focus:ring-red-500', 'focus:border-red-500');
+                }
+            } else {
+                passwordInput.classList.remove('border-red-300', 'focus:ring-red-500', 'focus:border-red-500', 'border-green-300', 'focus:ring-green-500', 'focus:border-green-500');
+            }
+
+            return allValid;
+        }
+
+        // Show/hide password requirements based on auth mode
+        function togglePasswordRequirements(show) {
+            if (show) {
+                passwordRequirements.classList.remove('hidden');
+            } else {
+                passwordRequirements.classList.add('hidden');
+                // Reset password input styling when hiding requirements
+                passwordInput.classList.remove('border-red-300', 'focus:ring-red-500', 'focus:border-red-500', 'border-green-300', 'focus:ring-green-500', 'focus:border-green-500');
+            }
+        }
+
+        passwordInput.addEventListener('input', function() {
+            const password = this.value;
+            // Only validate if we're in sign up mode and requirements are visible
+            if (!passwordRequirements.classList.contains('hidden')) {
+                validatePassword(password);
+            }
+        });
+
+        // Export function to be used by auth.js
+        window.validatePassword = validatePassword;
+        window.togglePasswordRequirements = togglePasswordRequirements;
+    </script>
 </body>
 </html>
