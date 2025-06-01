@@ -633,7 +633,26 @@ pointer-events:0;
         </div>
     </footer>
 
-    <script>
+    <!-- Success Modal -->
+    <div id="success-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white p-8 rounded-xl shadow-xl max-w-md mx-4">
+            <div class="text-center">
+                <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-check text-green-600 text-2xl"></i>
+                </div>
+                <h3 class="text-xl font-bold mb-2">Message Sent!</h3>
+                <p class="text-gray-600 mb-6">Thank you for contacting us. We'll get back to you soon!</p>
+                <button id="close-success-modal" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-medium transition duration-300">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { db } from './firebase.js';
+        import { collection, addDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
         // Simple animation for note cards when they come into view
         document.addEventListener('DOMContentLoaded', function() {
             const noteCards = document.querySelectorAll('.note-card');
@@ -720,6 +739,67 @@ pointer-events:0;
                     }
                 });
             });
+
+            // Contact form submission
+            const contactForm = document.querySelector('#contact form');
+            if (contactForm) {
+                contactForm.addEventListener('submit', async function(e) {
+                    e.preventDefault();
+                    
+                    const name = document.getElementById('name').value.trim();
+                    const email = document.getElementById('email').value.trim();
+                    const message = document.getElementById('message').value.trim();
+                    
+                    if (!name || !email || !message) {
+                        alert('Please fill in all fields.');
+                        return;
+                    }
+                    
+                    const submitButton = contactForm.querySelector('button[type="submit"]');
+                    const originalText = submitButton.textContent;
+                    submitButton.textContent = 'Sending...';
+                    submitButton.disabled = true;
+                    
+                    try {
+                        await addDoc(collection(db, "contact_messages"), {
+                            name: name,
+                            email: email,
+                            message: message,
+                            timestamp: new Date().toISOString(),
+                            createdAt: new Date()
+                        });
+                        
+                        // Show success modal
+                        document.getElementById('success-modal').classList.remove('hidden');
+                        contactForm.reset();
+                    } catch (error) {
+                        console.error('Error sending message:', error);
+                        alert('Sorry, there was an error sending your message. Please try again.');
+                    } finally {
+                        submitButton.textContent = originalText;
+                        submitButton.disabled = false;
+                    }
+                });
+            }
+
+            // Success modal close functionality
+            const successModal = document.getElementById('success-modal');
+            const closeSuccessModal = document.getElementById('close-success-modal');
+            
+            if (closeSuccessModal) {
+                closeSuccessModal.addEventListener('click', function() {
+                    successModal.classList.add('hidden');
+                });
+            }
+            
+            // Close modal when clicking outside
+            if (successModal) {
+                successModal.addEventListener('click', function(e) {
+                    if (e.target === successModal) {
+                        successModal.classList.add('hidden');
+                    }
+                });
+            }
         });
         
     </script>
