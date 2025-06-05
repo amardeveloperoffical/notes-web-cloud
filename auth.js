@@ -103,7 +103,7 @@ googleSigninBtn.addEventListener("click", async () => {
     try {
         const result = await signInWithPopup(auth, provider);
         console.log("Signed in user:", result.user);
-        window.location.href = "/dash.html";
+        window.location.href = "/home.html";
     } catch (error) {
         console.error("Error signing in:", error.message);
         showEmailModal("Google Sign-In Error", "Failed to sign in with Google: " + error.message);
