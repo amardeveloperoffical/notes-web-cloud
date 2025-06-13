@@ -274,7 +274,18 @@ pointer-events:0;
             -webkit-mask-image: linear-gradient(to right, transparent, white 20%, white 80%, transparent);
     }
 
-
+/* CSS */
+.bottom-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 60px;
+  background-color: #f0f0f0;
+  text-align: center;
+  z-index: 1000;
+}
+	    
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -939,6 +950,7 @@ pointer-events:0;
             </div>
         </div>
     </div>
+	<div class="bottom-banner">
 <script type="text/javascript">
 	atOptions = {
 		'key' : '3376df6c9fba43d7c61dc2c83661c4a9',
@@ -949,6 +961,7 @@ pointer-events:0;
 	};
 </script>
 <script type="text/javascript" src="//www.highperformanceformat.com/3376df6c9fba43d7c61dc2c83661c4a9/invoke.js"></script>
+	</div>
     <script type="module">
         import { db } from './firebase.js';
         import { collection, addDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
